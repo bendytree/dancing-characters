@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+
+    <style>
+      .file-upload {
+        position: relative;
+        margin-top: 10px;
+        display: block;
+        cursor: pointer;
+      }
+
+      .file-upload input[type="file"] {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+      }
+
+      .file-upload-button {
+        background-color: #0066ff;
+        color: white;
+        padding: 100px 10px;
+        border: none;
+        border-radius: 10px;
+        display: block;
+        font-size: 50pt;
+        text-align: center;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .file-upload-button:hover {
+        background-color: #0052cc;
+      }
+
+      #results {
+        margin-top: 50px;
+        text-align: center;
+        font-size: 32pt;
+        font-weight: bold;
+        font-family: Helvetica, sans-serif;
+      }
+      canvas {
+        margin-top: 60px;
+        box-shadow: 0 0 10px 10px rgba(0, 0, 0, 0.5);
+        max-width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+
+
+  <div class="file-upload">
+    <input id="fileInput" type="file" accept="image/jpeg" capture="environment" />
+    <label for="fileInput" class="file-upload-button">SCAN ></label>
+  </div>
+
+    <div id="results">
+      Please choose a picture.
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/perspective-transform@1.1.3/dist/perspective-transform.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js" integrity="sha512-WFN04846sdKMIP5LKNphMaWzU7YpMyCU245etK3g/2ARYbPK9Ub18eG+ljU96qKRCWh+quCY7yefSmlkQw1ANQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@1.3.0/dist/iife/full/index.js"></script>
+
+    <script>
+
+      document.getElementById('fileInput').addEventListener('change', handleImageSelect);
+
+      async function loadUploadedImage(file) {
+        const src = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            resolve(e.target.result);
+          };
+          reader.readAsDataURL(file);
+        });
+
+        const img = new Image();
+        return new Promise(resolve => {
+          img.onload = function() {
+            resolve(img);
+          };
+          img.src = src;
+        });
+      }
+
+      async function readQrCodes(imageData) {
+        const results = await ZXingWASM.readBarcodesFromImageData(imageData);
+        console.log('zxing.results', results);
+        let codes = results.map(code => {
+          const c = code.text.split('-')[0];
+          const character = {r: 'roblox'}[c];
+          const number = parseInt(code.text.split('-')[1], 10);
+          if (!character) throw new Error(`QR code had no character: ${JSON.stringify(code.text)}`);
+          if (!number || number <= 0) throw new Error(`QR code had no number: ${JSON.stringify(code.text)}`);
+          return {
+            character,
+            number,
+            points: Object.values(code.position),
+          };
+        });
+        codes = _.sortBy(codes, c => c.number);
+
+        const center = averagePoints(codes.flatMap(c => c.points));
+        for (const code of codes) {
+          code.corner = findFarthestPoint(code.points, center);
+        }
+        return codes;
+      }
+
+      async function handleImageSelect(event) {
+        const $results = $("#results").html('');
+        try {
+          const file = event.target.files[0];
+          if (!file) throw new Error(`No file selected.`);
+
+          const img = await loadUploadedImage(file);
+          console.log(`${img.width}px x ${img.height}px`);
+
+          const previewCanvas = document.createElement('canvas');
+          previewCanvas.width = img.width;
+          previewCanvas.height = img.height;
+          $results.append(previewCanvas);
+          const previewCtx = previewCanvas.getContext('2d');
+          previewCtx.drawImage(img, 0, 0);
+
+          const codes = await readQrCodes(previewCtx.getImageData(0, 0, previewCanvas.width, previewCanvas.height));
+          if (codes.length !== 4) throw new Error(`${codes.length} qr codes found. 4 are required.`);
+          const character = codes[0]?.character;
+
+
+
+
+          for (const c of codes) {
+            previewCtx.strokeStyle = '#f00';
+            previewCtx.lineWidth = 10;
+            previewCtx.moveTo(c.corner.x, c.corner.y);
+            previewCtx.arc(c.corner.x, c.corner.y, 200, 0, 2 * Math.PI);
+            previewCtx.stroke();
+          }
+
+
+          const finalCanvas = document.createElement('canvas');
+          finalCanvas.width = 2048;
+          finalCanvas.height = 2048;
+          const finalCtx = finalCanvas.getContext("2d");
+          $results.append(finalCanvas);
+          $results.append(previewCanvas);
+
+          const xGap = Math.round(((3360 * (finalCanvas.height / 2718)) - finalCanvas.width) / 2);
+          const dstCorners = [
+            {x: -xGap, y: 0},                    // top-left
+            {x: finalCanvas.width + xGap, y: 0},         // top-right
+            {x: finalCanvas.width + xGap, y: finalCanvas.height}, // bottom-right
+            {x: -xGap, y: finalCanvas.height}         // bottom-left
+          ];
+          console.log('xGap', xGap);
+          console.log('dstCorners', dstCorners);
+
+          // Calculate the transformation matrix
+          const perspT = PerspT(
+                  codes.flatMap(c => [c.corner.x, c.corner.y]),
+                  dstCorners.flatMap(c => [c.x, c.y]),
+          );
+          // Get image data
+          const imageData = previewCtx.getImageData(0, 0, previewCanvas.width, previewCanvas.height);
+          const srcData = imageData.data;
+
+          // Create destination image data
+          const destImageData = finalCtx.createImageData(finalCanvas.width, finalCanvas.height);
+          const dstData = destImageData.data;
+
+          for (let y = 0; y < finalCanvas.height; y++) {
+            for (let x = 0; x < finalCanvas.width; x++) {
+              // Get source pixel coordinates
+              const [srcX, srcY] = perspT.transformInverse(x, y);
+
+              if (srcX >= 0 && srcX < previewCanvas.width && srcY >= 0 && srcY < previewCanvas.height) {
+                // Calculate array indices
+                const dstIndex = (y * finalCanvas.width + x) * 4;
+                const srcIndex = (Math.floor(srcY) * previewCanvas.width + Math.floor(srcX)) * 4;
+
+                // Copy pixel data
+                dstData[dstIndex] = srcData[srcIndex];         // R
+                dstData[dstIndex + 1] = srcData[srcIndex + 1]; // G
+                dstData[dstIndex + 2] = srcData[srcIndex + 2]; // B
+                dstData[dstIndex + 3] = srcData[srcIndex + 3]; // A
+              }
+            }
+          }
+          finalCtx.putImageData(destImageData, 0, 0);
+
+          const jpg = finalCanvas.toDataURL('image/jpeg', 0.7);
+          await fetch('/upload-jpg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ character, jpg }),
+          });
+
+          $results.prepend(`<h3>SUCCESS!</h3><div>Ready to upload another anytime.</div>`);
+        }catch(e){
+          $results.prepend(`<h4>ERROR: ${e}</h4>`);
+        }
+      }
+
+
+
+      function averagePoints(points) {
+        if (points.length === 0) return null;
+
+        let sumX = 0;
+        let sumY = 0;
+
+        for (const point of points) {
+          sumX += point.x;
+          sumY += point.y;
+        }
+
+        return {
+          x: sumX / points.length,
+          y: sumY / points.length
+        };
+      }
+
+      function findFarthestPoint(points, center) {
+        if (points.length === 0) {
+          return null;
+        }
+
+        return points.reduce((farthest, point) => {
+          const distanceCurrent = getDistance(point, center);
+          const distanceFarthest = getDistance(farthest, center);
+          return distanceCurrent > distanceFarthest ? point : farthest;
+        });
+      }
+
+      function getDistance(point1, point2) {
+        const dx = point1.x - point2.x;
+        const dy = point1.y - point2.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+
+    </script>
+
+
+  </body>
+</html>

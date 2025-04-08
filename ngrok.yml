@@ -1,0 +1,6 @@
+tunnels:
+  web:
+    proto: http
+    addr: 3000
+    domain: go.allstarapps.com
+    

@@ -3,7 +3,7 @@
 
 ![Example Sheets](https://i.imgur.com/4DJUat3.jpeg)
 
-![Demo](https://i.imgur.com/QdDX3WT.mp4)
+![Demo](https://i.imgur.com/H1FFc4Y.gif)
 
 This project lets kids color a character then see it dance on screen. It's great for classroom parties at school.
 

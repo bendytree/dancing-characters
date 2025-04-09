@@ -1,9 +1,9 @@
 
 # Dancing Characters
 
-![Example Sheets](https://i.imgur.com/4DJUat3.jpeg)
+![Example Sheets](docs/character-sheets.jpg)
 
-![Demo](https://i.imgur.com/H1FFc4Y.gif)
+![Demo](docs/dancing-characters.gif)
 
 This project lets kids color a character then see it dance on screen. It's great for classroom parties at school.
 

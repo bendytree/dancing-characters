@@ -1,7 +1,11 @@
 
 # Dancing Characters
 
-This project lets kids color a character then see it dance on screen.
+![Example Sheets](https://www.dropbox.com/scl/fi/w1qybp8qzd3fi73jb3uny/dancing-character-sheets.jpg?rlkey=0amu2xlfb7iicdgl7tfd1m01p&dl=1)
+
+![Demo](https://www.dropbox.com/scl/fi/s9r4fkz9ezlghrnjlj37p/dancing-character.gif?rlkey=5ydhmu9q7tro7usxoeiy46as6&dl=1)
+
+This project lets kids color a character then see it dance on screen. It's great for classroom parties at school.
 
 It's NodeJS web project hosted via ngrok. The dancing animation is at `/dance` and the scanner is at `/`.
 
